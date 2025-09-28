@@ -5,22 +5,26 @@ A template repository for managing reusable Markdown "rules" that can be compose
 ## 🚀 Quick Start
 
 1. **Use this template**: Click "Use this template" on GitHub to create your own repository
-2. **Create your first rule database**:
+2. **Install the CLI** (optional):
+   ```bash
+   ./scripts/llm-rules install
+   ```
+3. **Create your first rule database**:
    ```bash
    ./scripts/llm-rules new --database myproject
    ```
-3. **Add some rules** to `rules/myproject/rules/`:
+4. **Add some rules** to `rules/myproject/rules/`:
    ```bash
    echo "## Code Quality\nAlways write clean, readable code." > rules/myproject/rules/code-quality.md
    echo "## Testing\nWrite comprehensive tests." > rules/myproject/rules/testing.md
    ```
-4. **Create a manifest** in `rules/myproject/manifest`:
+5. **Create a manifest** in `rules/myproject/manifest`:
    ```
    # My Project Rules
    | code-quality
    | testing
    ```
-5. **Build your documentation**:
+6. **Build your documentation**:
    ```bash
    ./scripts/llm-rules build --manifest rules/myproject/manifest
    ```

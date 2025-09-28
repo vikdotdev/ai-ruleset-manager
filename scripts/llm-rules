@@ -607,22 +607,72 @@ cmd_install() {
         esac
     done
 
-    # Prompt for installation directory if not provided
+    # Show current PATH to help user decide
     if [ -z "$prefix" ]; then
-        printf "Installation directory (default: ~/bin): "
-        read -r prefix
-        if [ -z "$prefix" ]; then
+        echo "Available directories in your PATH:"
+
+        # Convert PATH to array and display with numbers
+        path_dirs=""
+        counter=1
+        IFS=':'
+        for dir in $PATH; do
+            if [ -d "$dir" ]; then
+                echo "  $counter. $dir"
+                if [ -z "$path_dirs" ]; then
+                    path_dirs="$dir"
+                else
+                    path_dirs="$path_dirs:$dir"
+                fi
+                counter=$((counter + 1))
+            fi
+        done
+        IFS=' '
+
+        echo "  c. Custom directory"
+        echo ""
+        printf "Select directory by number or 'c' for custom (default: ~/bin): "
+        read -r choice
+
+        if [ -z "$choice" ]; then
             prefix="$HOME/bin"
+        elif [ "$choice" = "c" ] || [ "$choice" = "C" ]; then
+            printf "Enter custom directory: "
+            read -r prefix
+            if [ -z "$prefix" ]; then
+                prefix="$HOME/bin"
+            fi
+        else
+            # Parse the selected number
+            selected_counter=1
+            IFS=':'
+            for dir in $path_dirs; do
+                if [ "$selected_counter" = "$choice" ]; then
+                    prefix="$dir"
+                    break
+                fi
+                selected_counter=$((selected_counter + 1))
+            done
+            IFS=' '
+
+            # If invalid number, default to ~/bin
+            if [ -z "$prefix" ] || [ "$prefix" = "$choice" ]; then
+                echo "Invalid selection. Using default: ~/bin"
+                prefix="$HOME/bin"
+            fi
         fi
     fi
 
     # Expand tilde if present
     prefix=$(eval echo "$prefix")
 
-    # Create directory if it doesn't exist
+    # Remove trailing slash to normalize path
+    prefix="${prefix%/}"
+
+    # Check if directory exists
     if [ ! -d "$prefix" ]; then
-        echo "Creating directory: $prefix"
-        mkdir -p "$prefix"
+        echo "Error: Directory '$prefix' does not exist"
+        echo "Please create it first or choose an existing directory"
+        exit 1
     fi
 
     # Create symlink
@@ -642,12 +692,11 @@ cmd_install() {
     # Check if prefix is in PATH
     case ":$PATH:" in
         *":$prefix:"*)
-            echo "✓ $prefix is in your PATH"
+            echo "✓ $prefix is in your PATH - you can now use 'llm-rules' from anywhere"
             ;;
         *)
-            echo ""
-            echo "⚠ Warning: $prefix is not in your PATH"
-            echo "Add the following line to your shell configuration file:"
+            echo "⚠ $prefix is not in your PATH"
+            echo "To use 'llm-rules' from anywhere, add this to your shell config:"
             echo "  export PATH=\"\$PATH:$prefix\""
             ;;
     esac
