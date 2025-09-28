@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 echo "Testing: Comment handling"
 
 # Use basic fixture which has commented rule
-LLM_RULES_DIR=test/fixtures ./scripts/llm-rules build --manifest test/fixtures/basic/manifest --out test/tmp/build-02-comments.md
+LLM_RULES_DIR=test/fixtures ./scripts/ai-rules build --manifest test/fixtures/basic/manifest --out test/tmp/build-02-comments.md
 
 # Check that output file was created
 if [ ! -f "test/tmp/build-02-comments.md" ]; then

@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 echo "Testing: Build with missing manifest file"
 
 # Test build with non-existent manifest file
-if LLM_RULES_DIR=test/fixtures ./scripts/llm-rules build --manifest test/fixtures/nonexistent/manifest --out test/tmp/build-07-missing-manifest.md 2>test/tmp/build-07-stderr.txt; then
+if LLM_RULES_DIR=test/fixtures ./scripts/ai-rules build --manifest test/fixtures/nonexistent/manifest --out test/tmp/build-07-missing-manifest.md 2>test/tmp/build-07-stderr.txt; then
     echo "FAIL: Build should have failed with missing manifest"
     exit 1
 fi

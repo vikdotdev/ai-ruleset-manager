@@ -10,7 +10,7 @@ echo "Testing: New command when database already exists"
 mkdir -p test/tmp/existing-db
 
 # Test new command with existing database
-if LLM_RULES_DIR=test/tmp ./scripts/llm-rules new --database existing-db 2>test/tmp/new-03-stderr.txt; then
+if LLM_RULES_DIR=test/tmp ./scripts/ai-rules new --database existing-db 2>test/tmp/new-03-stderr.txt; then
     echo "FAIL: New command should have failed with existing database"
     exit 1
 fi

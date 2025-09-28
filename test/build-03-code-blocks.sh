@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 echo "Testing: Code block handling"
 
 # Test build with code blocks fixture
-LLM_RULES_DIR=test/fixtures ./scripts/llm-rules build --manifest test/fixtures/with_code_blocks/manifest --out test/tmp/build-03-code-blocks.md
+LLM_RULES_DIR=test/fixtures ./scripts/ai-rules build --manifest test/fixtures/with_code_blocks/manifest --out test/tmp/build-03-code-blocks.md
 
 # Check that output file was created
 if [ ! -f "test/tmp/build-03-code-blocks.md" ]; then

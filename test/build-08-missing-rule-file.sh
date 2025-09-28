@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 echo "Testing: Build with missing rule file"
 
 # Test build with manifest that references non-existent rule
-if LLM_RULES_DIR=test/fixtures ./scripts/llm-rules build --manifest test/fixtures/missing_rule/manifest --out test/tmp/build-08-missing-rule.md 2>test/tmp/build-08-stderr.txt; then
+if LLM_RULES_DIR=test/fixtures ./scripts/ai-rules build --manifest test/fixtures/missing_rule/manifest --out test/tmp/build-08-missing-rule.md 2>test/tmp/build-08-stderr.txt; then
     echo "FAIL: Build should have failed with missing rule file"
     exit 1
 fi

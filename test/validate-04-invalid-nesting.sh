@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 echo "Testing: Validate with invalid nesting"
 
 # Test validate with manifest that has invalid nesting
-if LLM_RULES_DIR=test/fixtures ./scripts/llm-rules validate --manifest test/fixtures/invalid_nesting/manifest >test/tmp/validate-04-output.txt 2>&1; then
+if LLM_RULES_DIR=test/fixtures ./scripts/ai-rules validate --manifest test/fixtures/invalid_nesting/manifest >test/tmp/validate-04-output.txt 2>&1; then
     echo "FAIL: Validate should have failed with invalid nesting"
     exit 1
 fi
