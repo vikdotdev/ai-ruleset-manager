@@ -1,0 +1,998 @@
+#!/bin/sh
+set -e
+
+# LLM Ruleset Manager - Template Repository CLI
+# POSIX-compliant script for building rule documentation from manifests
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+RULES_DIR="${LLM_RULES_DIR:-$PROJECT_DIR/rules}"
+VERSION="1.0.0"
+
+# Print usage
+usage() {
+    cat <<EOF
+llm-rules - Build and manage LLM instruction rulesets
+
+Usage:
+    llm-rules <command> [options]
+
+Commands:
+    build       Build documentation from a manifest
+    install     Install llm-rules to your system
+    deploy      Build and symlink output to a location
+    validate    Validate a database manifest (coming soon)
+    new         Create a new database (coming soon)
+    help        Show this help message
+
+Run 'llm-rules <command> --help' for more information on a command.
+
+Version: $VERSION
+EOF
+}
+
+# Build command usage
+usage_build() {
+    cat <<EOF
+Usage: llm-rules build --manifest <path> [--out <file>]
+
+Build documentation from a manifest file.
+
+Options:
+    --manifest <path>   Path to manifest.ini file (required)
+    --out <file>        Output file path (default: build/<database>.md)
+
+Example:
+    llm-rules build --manifest rules/myproject/manifest.ini
+    llm-rules build --manifest rules/myproject/manifest.ini --out docs.md
+EOF
+}
+
+# Install command usage
+usage_install() {
+    cat <<EOF
+Usage: llm-rules install [--prefix <path>]
+
+Install llm-rules to your system.
+
+Options:
+    --prefix <path>     Installation directory (will prompt if not provided)
+
+Example:
+    llm-rules install --prefix ~/bin
+    llm-rules install --prefix /usr/local/bin
+EOF
+}
+
+# Deploy command usage
+usage_deploy() {
+    cat <<EOF
+Usage: llm-rules deploy --manifest <path> --out <file>
+
+Build documentation and create a symlink at the specified location.
+
+Options:
+    --manifest <path>   Path to manifest.ini file (required)
+    --out <file>        Symlink destination path (required)
+
+Example:
+    llm-rules deploy --manifest rules/myproject/manifest.ini --out ~/docs/project.md
+EOF
+}
+
+# New command usage
+usage_new() {
+    cat <<EOF
+Usage: llm-rules new --database <name>
+
+Create a new database with template structure.
+
+Options:
+    --database <name>   Name of the new database (required)
+
+Example:
+    llm-rules new --database myproject
+    llm-rules new --database react-frontend
+EOF
+}
+
+# Validate command usage
+usage_validate() {
+    cat <<EOF
+Usage: llm-rules validate --manifest <path>
+
+Validate a manifest file and check for missing rule files.
+
+Options:
+    --manifest <path>   Path to manifest.ini file (required)
+
+Example:
+    llm-rules validate --manifest rules/myproject/manifest.ini
+EOF
+}
+
+# Function to normalize heading levels in markdown
+normalize_headings() {
+    local file="$1"
+    local target_level="${2:-3}"  # Default to level 3 if not specified
+    local min_level=6
+    local in_code_block=0
+
+    # First pass: find minimum heading level outside code blocks
+    while IFS= read -r line; do
+        # Check for code block boundaries
+        case "$line" in
+            '```'*|'~~~'*)
+                if [ $in_code_block -eq 0 ]; then
+                    in_code_block=1
+                else
+                    in_code_block=0
+                fi
+                ;;
+            *)
+                # Only process if not in code block
+                if [ $in_code_block -eq 0 ]; then
+                    # Check if line is a heading
+                    case "$line" in
+                        '#'*)
+                            # Count leading hashes
+                            heading_level=$(echo "$line" | sed 's/^\(#*\).*/\1/' | wc -c)
+                            heading_level=$((heading_level - 1))  # Adjust for newline
+                            if [ $heading_level -gt 0 ] && [ $heading_level -lt $min_level ]; then
+                                min_level=$heading_level
+                            fi
+                            ;;
+                    esac
+                fi
+                ;;
+        esac
+    done < "$file"
+
+    # Calculate shift needed to reach target level
+    shift=$((target_level - min_level))
+
+    # Second pass: apply shift to headings
+    in_code_block=0
+    while IFS= read -r line; do
+        # Check for code block boundaries
+        case "$line" in
+            '```'*|'~~~'*)
+                if [ $in_code_block -eq 0 ]; then
+                    in_code_block=1
+                else
+                    in_code_block=0
+                fi
+                printf '%s\n' "$line"
+                ;;
+            *)
+                if [ $in_code_block -eq 1 ]; then
+                    # In code block, output as-is
+                    printf '%s\n' "$line"
+                else
+                    # Check if line is a heading
+                    case "$line" in
+                        '#'*)
+                            # Extract heading level and content
+                            hashes=$(echo "$line" | sed 's/^\(#*\).*/\1/')
+                            content=$(echo "$line" | sed 's/^#* *//')
+                            heading_level=$(echo "$hashes" | wc -c)
+                            heading_level=$((heading_level - 1))  # Adjust for newline
+
+                            # Apply shift
+                            new_level=$((heading_level + shift))
+
+                            # Clamp to maximum H6
+                            if [ $new_level -gt 6 ]; then
+                                new_level=6
+                            fi
+
+                            # Output adjusted heading
+                            i=0
+                            while [ $i -lt $new_level ]; do
+                                printf '#'
+                                i=$((i + 1))
+                            done
+                            printf ' %s\n' "$content"
+                            ;;
+                        *)
+                            # Not a heading, output as-is
+                            printf '%s\n' "$line"
+                            ;;
+                    esac
+                fi
+                ;;
+        esac
+    done < "$file"
+
+    # Handle the last line if it doesn't end with newline
+    if [ -n "$line" ]; then
+        case "$line" in
+            '```'*|'~~~'*)
+                if [ $in_code_block -eq 0 ]; then
+                    in_code_block=1
+                else
+                    in_code_block=0
+                fi
+                printf '%s\n' "$line"
+                ;;
+            *)
+                if [ $in_code_block -eq 1 ]; then
+                    printf '%s\n' "$line"
+                else
+                    case "$line" in
+                        '#'*)
+                            hashes=$(echo "$line" | sed 's/^\(#*\).*/\1/')
+                            content=$(echo "$line" | sed 's/^#* *//')
+                            heading_level=$(echo "$hashes" | wc -c)
+                            heading_level=$((heading_level - 1))
+                            new_level=$((heading_level + shift))
+                            if [ $new_level -gt 6 ]; then
+                                new_level=6
+                            fi
+                            i=0
+                            while [ $i -lt $new_level ]; do
+                                printf '#'
+                                i=$((i + 1))
+                            done
+                            printf ' %s\n' "$content"
+                            ;;
+                        *)
+                            printf '%s\n' "$line"
+                            ;;
+                    esac
+                fi
+                ;;
+        esac
+    fi
+}
+
+# Process a rule file
+process_rule() {
+    local rule_path="$1"
+    local manifest_dir="$2"
+    local target_level="${3:-1}"  # Default to level 1 if not specified
+    local full_path=""
+
+    # Add .md extension if not present (for new pipe format)
+    case "$rule_path" in
+        *.md)
+            # Already has extension
+            ;;
+        *)
+            # Add .md extension
+            rule_path="$rule_path.md"
+            ;;
+    esac
+
+    # Handle cross-database includes (e.g., other-db/rule.md)
+    case "$rule_path" in
+        */*)
+            # Cross-database reference
+            full_path="$RULES_DIR/$rule_path"
+            ;;
+        *)
+            # Local to current database
+            full_path="$manifest_dir/rules/$rule_path"
+            ;;
+    esac
+
+    if [ ! -f "$full_path" ]; then
+        echo "Warning: Rule file not found: $full_path" >&2
+        return 1
+    fi
+
+    # Generate and output rule title heading
+    rule_title=$(generate_rule_title "$(basename "$rule_path")")
+
+    # Output the rule title at the target level
+    i=0
+    while [ $i -lt $target_level ]; do
+        printf '#'
+        i=$((i + 1))
+    done
+    printf ' %s\n\n' "$rule_title"
+
+    # Normalize and output the rule content with target level + 1 (nested under title)
+    content_level=$((target_level + 1))
+    normalize_headings "$full_path" "$content_level"
+
+    # Add newline between rules
+    printf '\n'
+}
+
+# Generate a clean title from a rule filename
+generate_rule_title() {
+    local rule_name="$1"
+    local base_name=""
+
+    # Remove .md extension if present
+    case "$rule_name" in
+        *.md)
+            base_name="${rule_name%.md}"
+            ;;
+        *)
+            base_name="$rule_name"
+            ;;
+    esac
+
+    # Format as "Rule: <name>"
+    echo "Rule: $base_name"
+}
+
+# Parse a pipe-based line and extract level and rule name
+# Returns: "level rule_name" or empty string if invalid
+parse_pipe_line() {
+    local line="$1"
+    local pipe_count=0
+    local rule_name=""
+
+    # Count leading pipes
+    while [ "${line#|}" != "$line" ]; do
+        pipe_count=$((pipe_count + 1))
+        line="${line#|}"
+    done
+
+    # Must have at least one pipe
+    if [ $pipe_count -eq 0 ]; then
+        return 1
+    fi
+
+    # Extract rule name after pipes and whitespace
+    rule_name=$(echo "$line" | sed 's/^[[:space:]]*//')
+
+    # Must have a rule name
+    if [ -z "$rule_name" ]; then
+        return 1
+    fi
+
+    # Validate level (1-6 for markdown heading limits)
+    if [ $pipe_count -gt 6 ]; then
+        echo "Error: Too many nesting levels ($pipe_count). Maximum is 6." >&2
+        return 1
+    fi
+
+    echo "$pipe_count $rule_name"
+    return 0
+}
+
+# Helper function to validate a manifest silently (returns 0 if valid, 1 if invalid)
+validate_manifest() {
+    local manifest_path="$1"
+    local manifest_dir=$(dirname "$manifest_path")
+
+    # Validation counters
+    local total_rules=0
+    local missing_rules=0
+
+    # Parse manifest and validate each rule
+    local prev_level=0
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Skip empty lines
+        if [ -z "$line" ]; then
+            continue
+        fi
+
+        # Skip comments
+        case "$line" in
+            '#'*)
+                continue
+                ;;
+            *)
+                # Try to parse as pipe-based line
+                if parsed=$(parse_pipe_line "$line"); then
+                    # Extract level and rule name
+                    level=$(echo "$parsed" | cut -d' ' -f1)
+                    rule_name=$(echo "$parsed" | cut -d' ' -f2-)
+
+                    # Validate nesting (can't jump levels)
+                    if [ $level -gt $((prev_level + 1)) ]; then
+                        echo "Error: Invalid nesting in manifest. Level $level follows level $prev_level." >&2
+                        echo "Line: $line" >&2
+                        echo "Referenced in manifest: $manifest_path" >&2
+                        missing_rules=$((missing_rules + 1))
+                        total_rules=$((total_rules + 1))
+                        continue
+                    fi
+
+                    total_rules=$((total_rules + 1))
+
+                    # Add .md extension if not present
+                    case "$rule_name" in
+                        *.md)
+                            # Already has extension
+                            ;;
+                        *)
+                            # Add .md extension
+                            rule_name="$rule_name.md"
+                            ;;
+                    esac
+
+                    # Check if rule file exists
+                    case "$rule_name" in
+                        */*)
+                            # Cross-database reference
+                            rule_path="$RULES_DIR/$rule_name"
+                            ;;
+                        *)
+                            # Local rule
+                            rule_path="$manifest_dir/rules/$rule_name"
+                            ;;
+                    esac
+
+                    if [ ! -f "$rule_path" ]; then
+                        echo "Error: Rule file not found: $rule_path" >&2
+                        echo "Referenced in manifest: $manifest_path" >&2
+                        missing_rules=$((missing_rules + 1))
+                    fi
+                    prev_level=$level
+                else
+                    # Try legacy format (lines without pipes)
+                    trimmed=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+                    if [ -n "$trimmed" ]; then
+                        total_rules=$((total_rules + 1))
+
+                        # Check if rule file exists (legacy format)
+                        case "$trimmed" in
+                            */*)
+                                # Cross-database reference
+                                rule_path="$RULES_DIR/$trimmed"
+                                ;;
+                            *)
+                                # Local rule
+                                rule_path="$manifest_dir/rules/$trimmed"
+                                ;;
+                        esac
+
+                        if [ ! -f "$rule_path" ]; then
+                            echo "Error: Rule file not found: $rule_path" >&2
+                            echo "Referenced in manifest: $manifest_path" >&2
+                            missing_rules=$((missing_rules + 1))
+                        fi
+                    fi
+                fi
+                ;;
+        esac
+    done < "$manifest_path"
+
+    # Return exit code based on validation result
+    if [ $missing_rules -eq 0 ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Build command
+cmd_build() {
+    local manifest=""
+    local output=""
+
+    # Parse arguments
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --manifest)
+                manifest="$2"
+                shift 2
+                ;;
+            --out)
+                output="$2"
+                shift 2
+                ;;
+            --help|-h)
+                usage_build
+                exit 0
+                ;;
+            *)
+                echo "Error: Unknown option $1" >&2
+                usage_build
+                exit 1
+                ;;
+        esac
+    done
+
+    # Validate manifest argument
+    if [ -z "$manifest" ]; then
+        echo "Error: --manifest is required" >&2
+        usage_build
+        exit 1
+    fi
+
+    # Check if manifest exists
+    if [ ! -f "$manifest" ]; then
+        echo "Error: Manifest file not found: $manifest" >&2
+        exit 1
+    fi
+
+    # Validate manifest before building
+    if ! validate_manifest "$manifest"; then
+        echo "Error: Manifest validation failed. Build aborted." >&2
+        exit 1
+    fi
+
+    # Get manifest directory
+    manifest_dir=$(dirname "$manifest")
+
+    # Determine output file if not specified
+    if [ -z "$output" ]; then
+        # Extract database name from manifest path
+        database=$(basename "$manifest_dir")
+        output="build/${database}.md"
+    fi
+
+    # Check if output directory exists
+    output_dir=$(dirname "$output")
+    if [ ! -d "$output_dir" ]; then
+        echo "Error: Output directory does not exist: $output_dir" >&2
+        echo "Please create it first with: mkdir -p $output_dir" >&2
+        exit 1
+    fi
+
+    # Build to a temporary file first, then move to output
+    tmp_output="${output}.tmp.$$"
+
+    # Parse manifest and build output
+    prev_level=0
+
+    # Process manifest line by line
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Skip empty lines
+        if [ -z "$line" ]; then
+            continue
+        fi
+
+        # Skip comments
+        case "$line" in
+            '#'*)
+                continue
+                ;;
+            *)
+                # Try to parse as pipe-based line
+                if parsed=$(parse_pipe_line "$line"); then
+                    # Extract level and rule name
+                    level=$(echo "$parsed" | cut -d' ' -f1)
+                    rule_name=$(echo "$parsed" | cut -d' ' -f2-)
+
+                    # Validate nesting - can only increase by 1, but can decrease to any level
+                    if [ $level -gt $((prev_level + 1)) ]; then
+                        echo "Error: Invalid nesting in manifest. Level $level follows level $prev_level." >&2
+                        echo "Line: $line" >&2
+                        rm -f "$tmp_output"
+                        exit 1
+                    fi
+
+                    # Process the rule with the specified level
+                    process_rule "$rule_name" "$manifest_dir" "$level" >> "$tmp_output"
+
+                    # Update prev_level for next iteration
+                    # When going back to a lower level, that becomes the new comparison point
+                    prev_level=$level
+                else
+                    # Try legacy format (lines without pipes)
+                    trimmed=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+                    if [ -n "$trimmed" ]; then
+                        # Process as legacy rule file (default level 1)
+                        process_rule "$trimmed" "$manifest_dir" 1 >> "$tmp_output"
+                    fi
+                fi
+                ;;
+        esac
+    done < "$manifest"
+
+    # Move temporary file to final output
+    mv "$tmp_output" "$output"
+
+    echo "Successfully built $output from $manifest"
+}
+
+# Install command
+cmd_install() {
+    local prefix=""
+
+    # Parse arguments
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --prefix)
+                prefix="$2"
+                shift 2
+                ;;
+            --help|-h)
+                usage_install
+                exit 0
+                ;;
+            *)
+                echo "Error: Unknown option $1" >&2
+                usage_install
+                exit 1
+                ;;
+        esac
+    done
+
+    # Prompt for installation directory if not provided
+    if [ -z "$prefix" ]; then
+        printf "Installation directory (default: ~/bin): "
+        read -r prefix
+        if [ -z "$prefix" ]; then
+            prefix="$HOME/bin"
+        fi
+    fi
+
+    # Expand tilde if present
+    prefix=$(eval echo "$prefix")
+
+    # Create directory if it doesn't exist
+    if [ ! -d "$prefix" ]; then
+        echo "Creating directory: $prefix"
+        mkdir -p "$prefix"
+    fi
+
+    # Create symlink
+    target="$prefix/llm-rules"
+    if [ -e "$target" ]; then
+        echo "Warning: $target already exists. Overwrite? (y/N)"
+        read -r answer
+        case "$answer" in
+            y|Y) rm -f "$target" ;;
+            *) echo "Installation cancelled"; exit 1 ;;
+        esac
+    fi
+
+    ln -s "$SCRIPT_DIR/llm-rules" "$target"
+    echo "Successfully installed llm-rules to $target"
+
+    # Check if prefix is in PATH
+    case ":$PATH:" in
+        *":$prefix:"*)
+            echo "✓ $prefix is in your PATH"
+            ;;
+        *)
+            echo ""
+            echo "⚠ Warning: $prefix is not in your PATH"
+            echo "Add the following line to your shell configuration file:"
+            echo "  export PATH=\"\$PATH:$prefix\""
+            ;;
+    esac
+}
+
+# Deploy command
+cmd_deploy() {
+    local manifest=""
+    local output=""
+
+    # Parse arguments
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --manifest)
+                manifest="$2"
+                shift 2
+                ;;
+            --out)
+                output="$2"
+                shift 2
+                ;;
+            --help|-h)
+                usage_deploy
+                exit 0
+                ;;
+            *)
+                echo "Error: Unknown option $1" >&2
+                usage_deploy
+                exit 1
+                ;;
+        esac
+    done
+
+    # Validate arguments
+    if [ -z "$manifest" ]; then
+        echo "Error: --manifest is required" >&2
+        usage_deploy
+        exit 1
+    fi
+
+    if [ -z "$output" ]; then
+        echo "Error: --out is required" >&2
+        usage_deploy
+        exit 1
+    fi
+
+    # Extract database name from manifest path
+    manifest_dir=$(dirname "$manifest")
+    database=$(basename "$manifest_dir")
+    build_file="build/${database}.md"
+
+    # Build the documentation first
+    cmd_build --manifest "$manifest" --out "$build_file"
+
+    # Create symlink to the built file
+    output_dir=$(dirname "$output")
+    if [ ! -d "$output_dir" ]; then
+        echo "Creating directory: $output_dir"
+        mkdir -p "$output_dir"
+    fi
+
+    # Create or update symlink
+    if [ -e "$output" ]; then
+        rm -f "$output"
+    fi
+
+    # Get absolute path to build file
+    abs_build_file="$(cd "$(dirname "$build_file")" && pwd)/$(basename "$build_file")"
+
+    ln -s "$abs_build_file" "$output"
+    echo "Successfully deployed to $output"
+}
+
+# New command
+cmd_new() {
+    local database=""
+
+    # Parse arguments
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --database)
+                database="$2"
+                shift 2
+                ;;
+            --help|-h)
+                usage_new
+                exit 0
+                ;;
+            *)
+                echo "Error: Unknown option $1" >&2
+                usage_new
+                exit 1
+                ;;
+        esac
+    done
+
+    # Validate database argument
+    if [ -z "$database" ]; then
+        echo "Error: --database is required" >&2
+        usage_new
+        exit 1
+    fi
+
+    # Check if database already exists
+    database_dir="$RULES_DIR/$database"
+    if [ -d "$database_dir" ]; then
+        echo "Error: Database '$database' already exists at $database_dir" >&2
+        exit 1
+    fi
+
+    # Create database structure
+    echo "Creating new database: $database"
+    mkdir -p "$database_dir/rules"
+
+    # Create manifest template
+    cat > "$database_dir/manifest.ini" <<EOF
+# $database Database Manifest
+# Add your rule files below
+
+[rules]
+# basic.md
+# advanced.md
+
+# Include rules from other databases:
+# other-database/specific-rule.md
+EOF
+
+    # Create example rule file
+    cat > "$database_dir/rules/basic.md" <<EOF
+# Basic $database Rules
+
+Add your rules here.
+
+## Guidelines
+
+Your content goes here.
+
+\`\`\`bash
+# Example code block
+echo "Hello $database"
+\`\`\`
+EOF
+
+    echo "✓ Created database structure at $database_dir"
+    echo "✓ Created manifest: $database_dir/manifest.ini"
+    echo "✓ Created example rule: $database_dir/rules/basic.md"
+    echo ""
+    echo "Next steps:"
+    echo "1. Edit $database_dir/manifest.ini to include your rules"
+    echo "2. Add rule files to $database_dir/rules/"
+    echo "3. Build with: llm-rules build --manifest $database_dir/manifest.ini"
+}
+
+# Validate command
+cmd_validate() {
+    local manifest=""
+
+    # Parse arguments
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --manifest)
+                manifest="$2"
+                shift 2
+                ;;
+            --help|-h)
+                usage_validate
+                exit 0
+                ;;
+            *)
+                echo "Error: Unknown option $1" >&2
+                usage_validate
+                exit 1
+                ;;
+        esac
+    done
+
+    # Validate manifest argument
+    if [ -z "$manifest" ]; then
+        echo "Error: --manifest is required" >&2
+        usage_validate
+        exit 1
+    fi
+
+    # Check if manifest exists
+    if [ ! -f "$manifest" ]; then
+        echo "Error: Manifest file not found: $manifest" >&2
+        exit 1
+    fi
+
+    manifest_dir=$(dirname "$manifest")
+    database=$(basename "$manifest_dir")
+
+    echo "Validating manifest: $manifest"
+    echo "Database path: $manifest_dir"
+    echo ""
+
+    # Validation counters
+    total_rules=0
+    missing_rules=0
+    valid_rules=0
+
+    # Parse manifest and validate each rule
+    local prev_level=0
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Skip empty lines
+        if [ -z "$line" ]; then
+            continue
+        fi
+
+        # Skip comments
+        case "$line" in
+            '#'*)
+                continue
+                ;;
+            *)
+                # Try to parse as pipe-based line
+                if parsed=$(parse_pipe_line "$line"); then
+                    # Extract level and rule name
+                    level=$(echo "$parsed" | cut -d' ' -f1)
+                    rule_name=$(echo "$parsed" | cut -d' ' -f2-)
+
+                    # Validate nesting (can't jump levels)
+                    if [ $level -gt $((prev_level + 1)) ]; then
+                        echo "✗ Invalid nesting: level $level follows level $prev_level"
+                        echo "   Line: $line"
+                        missing_rules=$((missing_rules + 1))
+                        total_rules=$((total_rules + 1))
+                        continue
+                    fi
+
+                    total_rules=$((total_rules + 1))
+
+                    # Add .md extension if not present
+                    case "$rule_name" in
+                        *.md)
+                            # Already has extension
+                            ;;
+                        *)
+                            # Add .md extension
+                            rule_name="$rule_name.md"
+                            ;;
+                    esac
+
+                    # Check if rule file exists
+                    case "$rule_name" in
+                        */*)
+                            # Cross-database reference
+                            rule_path="$RULES_DIR/$rule_name"
+                            ;;
+                        *)
+                            # Local rule
+                            rule_path="$manifest_dir/rules/$rule_name"
+                            ;;
+                    esac
+
+                    if [ -f "$rule_path" ]; then
+                        echo "✓ $rule_name (level $level)"
+                        valid_rules=$((valid_rules + 1))
+                    else
+                        echo "✗ $rule_name (not found: $rule_path)"
+                        missing_rules=$((missing_rules + 1))
+                    fi
+                    prev_level=$level
+                else
+                    # Try legacy format (lines without pipes)
+                    trimmed=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+                    if [ -n "$trimmed" ]; then
+                        total_rules=$((total_rules + 1))
+
+                        # Check if rule file exists (legacy format)
+                        case "$trimmed" in
+                            */*)
+                                # Cross-database reference
+                                rule_path="$RULES_DIR/$trimmed"
+                                ;;
+                            *)
+                                # Local rule
+                                rule_path="$manifest_dir/rules/$trimmed"
+                                ;;
+                        esac
+
+                        if [ -f "$rule_path" ]; then
+                            echo "✓ $trimmed (legacy format)"
+                            valid_rules=$((valid_rules + 1))
+                        else
+                            echo "✗ $trimmed (not found: $rule_path)"
+                            missing_rules=$((missing_rules + 1))
+                        fi
+                    fi
+                fi
+                ;;
+        esac
+    done < "$manifest"
+
+    echo ""
+    echo "Validation Summary:"
+    echo "Total rules: $total_rules"
+    echo "Valid rules: $valid_rules"
+    echo "Missing rules: $missing_rules"
+
+    if [ $missing_rules -eq 0 ]; then
+        echo ""
+        echo "✓ Database '$database' is valid!"
+        exit 0
+    else
+        echo ""
+        echo "✗ Database '$database' has $missing_rules missing rule(s)"
+        exit 1
+    fi
+}
+
+# Main command dispatcher
+case "${1:-}" in
+    build)
+        shift
+        cmd_build "$@"
+        ;;
+    install)
+        shift
+        cmd_install "$@"
+        ;;
+    deploy)
+        shift
+        cmd_deploy "$@"
+        ;;
+    validate)
+        shift
+        cmd_validate "$@"
+        ;;
+    new)
+        shift
+        cmd_new "$@"
+        ;;
+    help|--help|-h)
+        usage
+        exit 0
+        ;;
+    "")
+        usage
+        exit 0
+        ;;
+    *)
+        echo "Error: Unknown command '$1'" >&2
+        echo ""
+        usage
+        exit 1
+        ;;
+esac

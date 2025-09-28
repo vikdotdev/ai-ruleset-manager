@@ -1,0 +1,5 @@
+# Basic test manifest - simple rules without code blocks
+
+| rule1
+| rule2
+# commented-rule.md

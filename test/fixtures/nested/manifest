@@ -1,0 +1,4 @@
+# Simple nested hierarchy test
+| parent
+|| child1
+|| child2

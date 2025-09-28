@@ -1,0 +1,12 @@
+# Complex nested hierarchy test
+| intro
+| section1
+|| section1-sub1
+|| section1-sub2
+||| section1-sub2-detail
+| section2
+|| section2-sub1
+||| section2-sub1-detail1
+||| section2-sub1-detail2
+|| section2-sub2
+| conclusion

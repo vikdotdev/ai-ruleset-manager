@@ -1,0 +1,3 @@
+# Test manifest with missing rule file
+| existing-rule
+| nonexistent-rule
