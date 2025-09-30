@@ -18,7 +18,6 @@ fi
 # Create expected output - comments inside code blocks should be preserved
 cat > test/tmp/build-03-expected.md <<'EOF'
 # Rule: code-rule
-
 ## Code Rule
 
 This rule has code blocks with comments.
@@ -38,7 +37,6 @@ def hello():
 # Another comment
 echo "test"
 ```
-
 EOF
 
 # Compare actual vs expected

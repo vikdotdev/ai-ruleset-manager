@@ -266,11 +266,13 @@ process_rule() {
             ;;
     esac
 
-    # Handle cross-database includes (e.g., other-db/rule.md)
+    # Handle cross-database includes (e.g., other-db/rule)
     case "$rule_path" in
         */*)
-            # Cross-database reference
-            full_path="$RULES_DIR/$rule_path"
+            # Cross-database reference: database/rule -> RULES_DIR/database/rules/rule.md
+            db_name="${rule_path%%/*}"
+            rule_name="${rule_path#*/}"
+            full_path="$RULES_DIR/$db_name/rules/$rule_name"
             ;;
         *)
             # Local to current database
@@ -292,13 +294,25 @@ process_rule() {
         printf '#'
         i=$((i + 1))
     done
-    printf ' %s\n\n' "$rule_title"
+    printf ' %s\n' "$rule_title"
 
     # Normalize and output the rule content with target level + 1 (nested under title)
+    # Create temporary file with normalized content
     content_level=$((target_level + 1))
-    normalize_headings "$full_path" "$content_level"
+    temp_content=$(mktemp)
+    normalize_headings "$full_path" "$content_level" > "$temp_content"
 
-    # Add newline between rules
+    # Trim leading blank lines
+    sed -i '/./,$!d' "$temp_content"
+
+    # Trim trailing blank lines
+    sed -i -e :a -e '/^\s*$/{$d;N;ba' -e '}' "$temp_content"
+
+    # Output the trimmed content
+    cat "$temp_content"
+    rm -f "$temp_content"
+
+    # Add single newline between rules
     printf '\n'
 }
 
@@ -386,14 +400,10 @@ validate_manifest() {
                     level=$(echo "$parsed" | cut -d' ' -f1)
                     rule_name=$(echo "$parsed" | cut -d' ' -f2-)
 
-                    # Validate nesting (can't jump levels)
+                    # Validate nesting (can't jump levels) - auto-correct for validation
                     if [ $level -gt $((prev_level + 1)) ]; then
-                        echo "Error: Invalid nesting in manifest. Level $level follows level $prev_level." >&2
-                        echo "Line: $line" >&2
-                        echo "Referenced in manifest: $manifest_path" >&2
-                        missing_rules=$((missing_rules + 1))
-                        total_rules=$((total_rules + 1))
-                        continue
+                        corrected_level=$((prev_level + 1))
+                        level=$corrected_level
                     fi
 
                     total_rules=$((total_rules + 1))
@@ -412,8 +422,12 @@ validate_manifest() {
                     # Check if rule file exists
                     case "$rule_name" in
                         */*)
-                            # Cross-database reference
-                            rule_path="$RULES_DIR/$rule_name"
+                            # Cross-database reference: database/rule -> RULES_DIR/database/rules/rule.md
+                            db_name="${rule_name%%/*}"
+                            rule_file="${rule_name#*/}"
+                            # Remove .md if present, will be re-added
+                            rule_file="${rule_file%.md}.md"
+                            rule_path="$RULES_DIR/$db_name/rules/$rule_file"
                             ;;
                         *)
                             # Local rule
@@ -515,18 +529,24 @@ cmd_build() {
     manifest_dir=$(dirname "$manifest")
 
     # Determine output file if not specified
+    local using_default_build_dir=false
     if [ -z "$output" ]; then
         # Extract database name from manifest path
         database=$(basename "$manifest_dir")
         output="build/${database}.md"
+        using_default_build_dir=true
     fi
 
-    # Check if output directory exists
+    # Check if output directory exists, auto-create if using default build/ directory
     output_dir=$(dirname "$output")
     if [ ! -d "$output_dir" ]; then
-        echo "Error: Output directory does not exist: $output_dir" >&2
-        echo "Create it first with: mkdir -p $output_dir" >&2
-        exit 1
+        if [ "$using_default_build_dir" = true ]; then
+            mkdir -p "$output_dir"
+        else
+            echo "Error: Output directory does not exist: $output_dir" >&2
+            echo "Create it first with: mkdir -p $output_dir" >&2
+            exit 1
+        fi
     fi
 
     # Build to a temporary file first, then move to output
@@ -556,13 +576,14 @@ cmd_build() {
 
                     # Validate nesting - can only increase by 1, but can decrease to any level
                     if [ $level -gt $((prev_level + 1)) ]; then
-                        echo "Error: Invalid nesting in manifest. Level $level follows level $prev_level." >&2
+                        corrected_level=$((prev_level + 1))
+                        echo "Warning: Invalid nesting in manifest. Level $level follows level $prev_level." >&2
                         echo "Line: $line" >&2
-                        rm -f "$tmp_output"
-                        exit 1
+                        echo "Auto-correcting to level $corrected_level" >&2
+                        level=$corrected_level
                     fi
 
-                    # Process the rule with the specified level
+                    # Process the rule with the corrected level
                     process_rule "$rule_name" "$manifest_dir" "$level" >> "$tmp_output"
 
                     # Update prev_level for next iteration
@@ -580,8 +601,9 @@ cmd_build() {
         esac
     done < "$manifest"
 
-    # Move temporary file to final output
-    mv "$tmp_output" "$output"
+    # Trim trailing whitespace and move to final output
+    sed -e :a -e '/^\s*$/{$d;N;ba' -e '}' "$tmp_output" > "$output"
+    rm -f "$tmp_output"
 
     echo "Successfully built $output from $manifest"
 }
@@ -821,7 +843,6 @@ cmd_new() {
 
     # Create manifest template
     cat > "$database_dir/manifest" <<EOF
-# $database Database Manifest
 # Add your rule files below using the pipe format
 
 | basic
@@ -925,13 +946,12 @@ cmd_validate() {
                     level=$(echo "$parsed" | cut -d' ' -f1)
                     rule_name=$(echo "$parsed" | cut -d' ' -f2-)
 
-                    # Validate nesting (can't jump levels)
+                    # Validate nesting (can't jump levels) - show warning but auto-correct
                     if [ $level -gt $((prev_level + 1)) ]; then
-                        echo "✗ Invalid nesting: level $level follows level $prev_level"
+                        corrected_level=$((prev_level + 1))
+                        echo "⚠ Nesting warning: level $level follows level $prev_level (will auto-correct to $corrected_level)"
                         echo "   Line: $line"
-                        missing_rules=$((missing_rules + 1))
-                        total_rules=$((total_rules + 1))
-                        continue
+                        level=$corrected_level
                     fi
 
                     total_rules=$((total_rules + 1))
@@ -950,8 +970,12 @@ cmd_validate() {
                     # Check if rule file exists
                     case "$rule_name" in
                         */*)
-                            # Cross-database reference
-                            rule_path="$RULES_DIR/$rule_name"
+                            # Cross-database reference: database/rule -> RULES_DIR/database/rules/rule.md
+                            db_name="${rule_name%%/*}"
+                            rule_file="${rule_name#*/}"
+                            # Remove .md if present, will be re-added
+                            rule_file="${rule_file%.md}.md"
+                            rule_path="$RULES_DIR/$db_name/rules/$rule_file"
                             ;;
                         *)
                             # Local rule

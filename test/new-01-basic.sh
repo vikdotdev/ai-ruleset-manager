@@ -44,7 +44,6 @@ fi
 
 # Verify manifest content
 cat > test/tmp/new-01-expected-manifest <<'EOF'
-# testdb Database Manifest
 # Add your rule files below using the pipe format
 
 | basic

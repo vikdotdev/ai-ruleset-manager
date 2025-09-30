@@ -1,0 +1,4 @@
+# Test manifest with invalid nesting that should auto-correct
+| parent
+||| deeply-nested
+| another-parent

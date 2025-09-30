@@ -18,7 +18,6 @@ fi
 # Create expected output based on basic fixture
 cat > test/tmp/build-01-expected.md <<'EOF'
 # Rule: rule1
-
 ## Rule One
 
 This is the first rule.
@@ -28,7 +27,6 @@ This is the first rule.
 Some basic content here.
 
 # Rule: rule2
-
 ## Rule Two
 
 This is the second rule.
@@ -38,7 +36,6 @@ This is the second rule.
 - Point one
 - Point two
 - Point three
-
 EOF
 
 # Compare actual vs expected
