@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 echo "Testing: Simple nested hierarchy"
 
 # Test build with nested fixture
-LLM_RULES_DIR=test/fixtures ./scripts/llm-rules build --manifest test/fixtures/nested/manifest --out test/tmp/build-05-nested.md
+LLM_RULES_DIR=test/fixtures ./scripts/ai-rules build --manifest test/fixtures/nested/manifest --out test/tmp/build-05-nested.md
 
 # Check that output file was created
 if [ ! -f "test/tmp/build-05-nested.md" ]; then
@@ -15,10 +15,9 @@ if [ ! -f "test/tmp/build-05-nested.md" ]; then
     exit 1
 fi
 
-# Create expected output - nested structure with rule titles
+# Create expected output based on nested fixture
 cat > test/tmp/build-05-expected.md <<'EOF'
 # Rule: parent
-
 ## Parent Rule
 
 This is the parent rule content.
@@ -28,7 +27,6 @@ This is the parent rule content.
 Some parent content here.
 
 ## Rule: child1
-
 ### First Child
 
 This is the first child rule.
@@ -38,7 +36,6 @@ This is the first child rule.
 Content for first child.
 
 ## Rule: child2
-
 ### Second Child
 
 This is the second child rule.
@@ -46,7 +43,6 @@ This is the second child rule.
 #### Another Section
 
 Content for second child.
-
 EOF
 
 # Compare actual vs expected

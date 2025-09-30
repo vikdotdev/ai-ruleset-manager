@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 echo "Testing: Basic build functionality"
 
 # Test build with basic fixture (no code blocks)
-LLM_RULES_DIR=test/fixtures ./scripts/llm-rules build --manifest test/fixtures/basic/manifest --out test/tmp/build-01-basic.md
+LLM_RULES_DIR=test/fixtures ./scripts/ai-rules build --manifest test/fixtures/basic/manifest --out test/tmp/build-01-basic.md
 
 # Check that output file was created
 if [ ! -f "test/tmp/build-01-basic.md" ]; then
@@ -18,7 +18,6 @@ fi
 # Create expected output based on basic fixture
 cat > test/tmp/build-01-expected.md <<'EOF'
 # Rule: rule1
-
 ## Rule One
 
 This is the first rule.
@@ -28,7 +27,6 @@ This is the first rule.
 Some basic content here.
 
 # Rule: rule2
-
 ## Rule Two
 
 This is the second rule.
@@ -38,7 +36,6 @@ This is the second rule.
 - Point one
 - Point two
 - Point three
-
 EOF
 
 # Compare actual vs expected

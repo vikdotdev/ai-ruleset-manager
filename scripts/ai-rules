@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-# LLM Ruleset Manager - Template Repository CLI
+# AI Ruleset Manager - Template Repository CLI
 # POSIX-compliant script for building rule documentation from manifests
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -12,20 +12,20 @@ VERSION="1.0.0"
 # Print usage
 usage() {
     cat <<EOF
-llm-rules - Build and manage LLM instruction rulesets
+ai-rules - Build and manage AI instruction rulesets
 
 Usage:
-    llm-rules <command> [options]
+    ai-rules <command> [options]
 
 Commands:
     build       Build documentation from a manifest
-    install     Install llm-rules to your system
-    deploy      Build and symlink output to a location
-    validate    Validate a database manifest (coming soon)
-    new         Create a new database (coming soon)
+    install     Install ai-rules to your system
+    build-link  Build and symlink output to a location
+    validate    Validate a database manifest
+    new         Create a new database
     help        Show this help message
 
-Run 'llm-rules <command> --help' for more information on a command.
+Run 'ai-rules <command> --help' for more information on a command.
 
 Version: $VERSION
 EOF
@@ -34,7 +34,7 @@ EOF
 # Build command usage
 usage_build() {
     cat <<EOF
-Usage: llm-rules build --manifest <path> [--out <file>]
+Usage: ai-rules build --manifest <path> [--out <file>]
 
 Build documentation from a manifest file.
 
@@ -43,47 +43,49 @@ Options:
     --out <file>        Output file path (default: build/<database>.md)
 
 Example:
-    llm-rules build --manifest rules/myproject/manifest.ini
-    llm-rules build --manifest rules/myproject/manifest.ini --out docs.md
+    ai-rules build --manifest rules/myproject/manifest
+    ai-rules build --manifest rules/myproject/manifest --out docs.md
 EOF
 }
 
 # Install command usage
 usage_install() {
     cat <<EOF
-Usage: llm-rules install [--prefix <path>]
+Usage: ai-rules install [--prefix <path>] [--bin-name <name>]
 
-Install llm-rules to your system.
+Install ai-rules to your system.
 
 Options:
     --prefix <path>     Installation directory (will prompt if not provided)
+    --bin-name <name>   Custom binary name (default: ai-rules)
 
 Example:
-    llm-rules install --prefix ~/bin
-    llm-rules install --prefix /usr/local/bin
+    ai-rules install --prefix ~/bin
+    ai-rules install --prefix /usr/local/bin
+    ai-rules install --bin-name my-ai-tool
 EOF
 }
 
-# Deploy command usage
-usage_deploy() {
+# Build-link command usage
+usage_build_link() {
     cat <<EOF
-Usage: llm-rules deploy --manifest <path> --out <file>
+Usage: ai-rules build-link --manifest <path> --out <file>
 
 Build documentation and create a symlink at the specified location.
 
 Options:
-    --manifest <path>   Path to manifest.ini file (required)
+    --manifest <path>   Path to manifest file (required)
     --out <file>        Symlink destination path (required)
 
 Example:
-    llm-rules deploy --manifest rules/myproject/manifest.ini --out ~/docs/project.md
+    ai-rules build-link --manifest rules/myproject/manifest --out ~/docs/project.md
 EOF
 }
 
 # New command usage
 usage_new() {
     cat <<EOF
-Usage: llm-rules new --database <name>
+Usage: ai-rules new --database <name>
 
 Create a new database with template structure.
 
@@ -91,15 +93,15 @@ Options:
     --database <name>   Name of the new database (required)
 
 Example:
-    llm-rules new --database myproject
-    llm-rules new --database react-frontend
+    ai-rules new --database myproject
+    ai-rules new --database react-frontend
 EOF
 }
 
 # Validate command usage
 usage_validate() {
     cat <<EOF
-Usage: llm-rules validate --manifest <path>
+Usage: ai-rules validate --manifest <path>
 
 Validate a manifest file and check for missing rule files.
 
@@ -107,7 +109,7 @@ Options:
     --manifest <path>   Path to manifest.ini file (required)
 
 Example:
-    llm-rules validate --manifest rules/myproject/manifest.ini
+    ai-rules validate --manifest rules/myproject/manifest
 EOF
 }
 
@@ -264,11 +266,13 @@ process_rule() {
             ;;
     esac
 
-    # Handle cross-database includes (e.g., other-db/rule.md)
+    # Handle cross-database includes (e.g., other-db/rule)
     case "$rule_path" in
         */*)
-            # Cross-database reference
-            full_path="$RULES_DIR/$rule_path"
+            # Cross-database reference: database/rule -> RULES_DIR/database/rules/rule.md
+            db_name="${rule_path%%/*}"
+            rule_name="${rule_path#*/}"
+            full_path="$RULES_DIR/$db_name/rules/$rule_name"
             ;;
         *)
             # Local to current database
@@ -290,13 +294,25 @@ process_rule() {
         printf '#'
         i=$((i + 1))
     done
-    printf ' %s\n\n' "$rule_title"
+    printf ' %s\n' "$rule_title"
 
     # Normalize and output the rule content with target level + 1 (nested under title)
+    # Create temporary file with normalized content
     content_level=$((target_level + 1))
-    normalize_headings "$full_path" "$content_level"
+    temp_content=$(mktemp)
+    normalize_headings "$full_path" "$content_level" > "$temp_content"
 
-    # Add newline between rules
+    # Trim leading blank lines
+    sed -i '/./,$!d' "$temp_content"
+
+    # Trim trailing blank lines
+    sed -i -e :a -e '/^\s*$/{$d;N;ba' -e '}' "$temp_content"
+
+    # Output the trimmed content
+    cat "$temp_content"
+    rm -f "$temp_content"
+
+    # Add single newline between rules
     printf '\n'
 }
 
@@ -384,14 +400,10 @@ validate_manifest() {
                     level=$(echo "$parsed" | cut -d' ' -f1)
                     rule_name=$(echo "$parsed" | cut -d' ' -f2-)
 
-                    # Validate nesting (can't jump levels)
+                    # Validate nesting (can't jump levels) - auto-correct for validation
                     if [ $level -gt $((prev_level + 1)) ]; then
-                        echo "Error: Invalid nesting in manifest. Level $level follows level $prev_level." >&2
-                        echo "Line: $line" >&2
-                        echo "Referenced in manifest: $manifest_path" >&2
-                        missing_rules=$((missing_rules + 1))
-                        total_rules=$((total_rules + 1))
-                        continue
+                        corrected_level=$((prev_level + 1))
+                        level=$corrected_level
                     fi
 
                     total_rules=$((total_rules + 1))
@@ -410,8 +422,12 @@ validate_manifest() {
                     # Check if rule file exists
                     case "$rule_name" in
                         */*)
-                            # Cross-database reference
-                            rule_path="$RULES_DIR/$rule_name"
+                            # Cross-database reference: database/rule -> RULES_DIR/database/rules/rule.md
+                            db_name="${rule_name%%/*}"
+                            rule_file="${rule_name#*/}"
+                            # Remove .md if present, will be re-added
+                            rule_file="${rule_file%.md}.md"
+                            rule_path="$RULES_DIR/$db_name/rules/$rule_file"
                             ;;
                         *)
                             # Local rule
@@ -513,18 +529,24 @@ cmd_build() {
     manifest_dir=$(dirname "$manifest")
 
     # Determine output file if not specified
+    local using_default_build_dir=false
     if [ -z "$output" ]; then
         # Extract database name from manifest path
         database=$(basename "$manifest_dir")
         output="build/${database}.md"
+        using_default_build_dir=true
     fi
 
-    # Check if output directory exists
+    # Check if output directory exists, auto-create if using default build/ directory
     output_dir=$(dirname "$output")
     if [ ! -d "$output_dir" ]; then
-        echo "Error: Output directory does not exist: $output_dir" >&2
-        echo "Please create it first with: mkdir -p $output_dir" >&2
-        exit 1
+        if [ "$using_default_build_dir" = true ]; then
+            mkdir -p "$output_dir"
+        else
+            echo "Error: Output directory does not exist: $output_dir" >&2
+            echo "Create it first with: mkdir -p $output_dir" >&2
+            exit 1
+        fi
     fi
 
     # Build to a temporary file first, then move to output
@@ -554,13 +576,14 @@ cmd_build() {
 
                     # Validate nesting - can only increase by 1, but can decrease to any level
                     if [ $level -gt $((prev_level + 1)) ]; then
-                        echo "Error: Invalid nesting in manifest. Level $level follows level $prev_level." >&2
+                        corrected_level=$((prev_level + 1))
+                        echo "Warning: Invalid nesting in manifest. Level $level follows level $prev_level." >&2
                         echo "Line: $line" >&2
-                        rm -f "$tmp_output"
-                        exit 1
+                        echo "Auto-correcting to level $corrected_level" >&2
+                        level=$corrected_level
                     fi
 
-                    # Process the rule with the specified level
+                    # Process the rule with the corrected level
                     process_rule "$rule_name" "$manifest_dir" "$level" >> "$tmp_output"
 
                     # Update prev_level for next iteration
@@ -578,8 +601,9 @@ cmd_build() {
         esac
     done < "$manifest"
 
-    # Move temporary file to final output
-    mv "$tmp_output" "$output"
+    # Trim trailing whitespace and move to final output
+    sed -e :a -e '/^\s*$/{$d;N;ba' -e '}' "$tmp_output" > "$output"
+    rm -f "$tmp_output"
 
     echo "Successfully built $output from $manifest"
 }
@@ -587,12 +611,17 @@ cmd_build() {
 # Install command
 cmd_install() {
     local prefix=""
+    local bin_name="ai-rules"
 
     # Parse arguments
     while [ $# -gt 0 ]; do
         case "$1" in
             --prefix)
                 prefix="$2"
+                shift 2
+                ;;
+            --bin-name)
+                bin_name="$2"
                 shift 2
                 ;;
             --help|-h)
@@ -671,12 +700,12 @@ cmd_install() {
     # Check if directory exists
     if [ ! -d "$prefix" ]; then
         echo "Error: Directory '$prefix' does not exist"
-        echo "Please create it first or choose an existing directory"
+        echo "Create it first or choose an existing directory"
         exit 1
     fi
 
     # Create symlink
-    target="$prefix/llm-rules"
+    target="$prefix/$bin_name"
     if [ -e "$target" ]; then
         echo "Warning: $target already exists. Overwrite? (y/N)"
         read -r answer
@@ -686,24 +715,24 @@ cmd_install() {
         esac
     fi
 
-    ln -s "$SCRIPT_DIR/llm-rules" "$target"
-    echo "Successfully installed llm-rules to $target"
+    ln -s "$SCRIPT_DIR/ai-rules" "$target"
+    echo "Successfully installed $bin_name to $target"
 
     # Check if prefix is in PATH
     case ":$PATH:" in
         *":$prefix:"*)
-            echo "✓ $prefix is in your PATH - you can now use 'llm-rules' from anywhere"
+            echo "✓ $prefix is in your PATH - you can now use '$bin_name' from anywhere"
             ;;
         *)
             echo "⚠ $prefix is not in your PATH"
-            echo "To use 'llm-rules' from anywhere, add this to your shell config:"
+            echo "To use '$bin_name' from anywhere, add this to your shell config:"
             echo "  export PATH=\"\$PATH:$prefix\""
             ;;
     esac
 }
 
-# Deploy command
-cmd_deploy() {
+# Build-link command
+cmd_build_link() {
     local manifest=""
     local output=""
 
@@ -719,12 +748,12 @@ cmd_deploy() {
                 shift 2
                 ;;
             --help|-h)
-                usage_deploy
+                usage_build_link
                 exit 0
                 ;;
             *)
                 echo "Error: Unknown option $1" >&2
-                usage_deploy
+                usage_build_link
                 exit 1
                 ;;
         esac
@@ -733,13 +762,13 @@ cmd_deploy() {
     # Validate arguments
     if [ -z "$manifest" ]; then
         echo "Error: --manifest is required" >&2
-        usage_deploy
+        usage_build_link
         exit 1
     fi
 
     if [ -z "$output" ]; then
         echo "Error: --out is required" >&2
-        usage_deploy
+        usage_build_link
         exit 1
     fi
 
@@ -751,11 +780,12 @@ cmd_deploy() {
     # Build the documentation first
     cmd_build --manifest "$manifest" --out "$build_file"
 
-    # Create symlink to the built file
+    # Check if output directory exists
     output_dir=$(dirname "$output")
     if [ ! -d "$output_dir" ]; then
-        echo "Creating directory: $output_dir"
-        mkdir -p "$output_dir"
+        echo "Error: Output directory does not exist: $output_dir" >&2
+        echo "Create it first with: mkdir -p $output_dir" >&2
+        exit 1
     fi
 
     # Create or update symlink
@@ -812,16 +842,14 @@ cmd_new() {
     mkdir -p "$database_dir/rules"
 
     # Create manifest template
-    cat > "$database_dir/manifest.ini" <<EOF
-# $database Database Manifest
-# Add your rule files below
+    cat > "$database_dir/manifest" <<EOF
+# Add your rule files below using the pipe format
 
-[rules]
-# basic.md
-# advanced.md
+| basic
+# | advanced
 
 # Include rules from other databases:
-# other-database/specific-rule.md
+# | other-database/specific-rule
 EOF
 
     # Create example rule file
@@ -841,13 +869,13 @@ echo "Hello $database"
 EOF
 
     echo "✓ Created database structure at $database_dir"
-    echo "✓ Created manifest: $database_dir/manifest.ini"
+    echo "✓ Created manifest: $database_dir/manifest"
     echo "✓ Created example rule: $database_dir/rules/basic.md"
     echo ""
     echo "Next steps:"
-    echo "1. Edit $database_dir/manifest.ini to include your rules"
+    echo "1. Edit $database_dir/manifest to include your rules"
     echo "2. Add rule files to $database_dir/rules/"
-    echo "3. Build with: llm-rules build --manifest $database_dir/manifest.ini"
+    echo "3. Build with: ai-rules build --manifest $database_dir/manifest"
 }
 
 # Validate command
@@ -918,13 +946,12 @@ cmd_validate() {
                     level=$(echo "$parsed" | cut -d' ' -f1)
                     rule_name=$(echo "$parsed" | cut -d' ' -f2-)
 
-                    # Validate nesting (can't jump levels)
+                    # Validate nesting (can't jump levels) - show warning but auto-correct
                     if [ $level -gt $((prev_level + 1)) ]; then
-                        echo "✗ Invalid nesting: level $level follows level $prev_level"
+                        corrected_level=$((prev_level + 1))
+                        echo "⚠ Nesting warning: level $level follows level $prev_level (will auto-correct to $corrected_level)"
                         echo "   Line: $line"
-                        missing_rules=$((missing_rules + 1))
-                        total_rules=$((total_rules + 1))
-                        continue
+                        level=$corrected_level
                     fi
 
                     total_rules=$((total_rules + 1))
@@ -943,8 +970,12 @@ cmd_validate() {
                     # Check if rule file exists
                     case "$rule_name" in
                         */*)
-                            # Cross-database reference
-                            rule_path="$RULES_DIR/$rule_name"
+                            # Cross-database reference: database/rule -> RULES_DIR/database/rules/rule.md
+                            db_name="${rule_name%%/*}"
+                            rule_file="${rule_name#*/}"
+                            # Remove .md if present, will be re-added
+                            rule_file="${rule_file%.md}.md"
+                            rule_path="$RULES_DIR/$db_name/rules/$rule_file"
                             ;;
                         *)
                             # Local rule
@@ -1018,9 +1049,9 @@ case "${1:-}" in
         shift
         cmd_install "$@"
         ;;
-    deploy)
+    build-link)
         shift
-        cmd_deploy "$@"
+        cmd_build_link "$@"
         ;;
     validate)
         shift

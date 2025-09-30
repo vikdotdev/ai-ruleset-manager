@@ -1,0 +1,5 @@
+# Test manifest with cross-database includes
+| local-rule
+| shared/common-rule
+|| shared/nested-shared
+| another-local

@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 echo "Testing: Files without EOF newline"
 
 # Test build with no_eof_newline fixture
-LLM_RULES_DIR=test/fixtures ./scripts/llm-rules build --manifest test/fixtures/no_eof_newline/manifest --out test/tmp/build-04-no-eof-newline.md
+LLM_RULES_DIR=test/fixtures ./scripts/ai-rules build --manifest test/fixtures/no_eof_newline/manifest --out test/tmp/build-04-no-eof-newline.md
 
 # Check that output file was created
 if [ ! -f "test/tmp/build-04-no-eof-newline.md" ]; then
@@ -18,7 +18,6 @@ fi
 # Create expected output - headings should be normalized and content preserved
 cat > test/tmp/build-04-expected.md <<'EOF'
 # Rule: no-newline-rule
-
 ## No Newline Rule
 
 This rule file does not end with a newline character.
@@ -26,7 +25,6 @@ This rule file does not end with a newline character.
 ### Content
 
 Some content here.
-
 EOF
 
 # Compare actual vs expected

@@ -7,19 +7,19 @@ cd "$(dirname "$0")/.."
 echo "Testing: New command"
 
 # Test creating new database - capture output
-LLM_RULES_DIR=test/tmp ./scripts/llm-rules new --database testdb > test/tmp/new-01-output.txt
+LLM_RULES_DIR=test/tmp ./scripts/ai-rules new --database testdb > test/tmp/new-01-output.txt
 
 # Create expected output for new command
 cat > test/tmp/new-01-expected.txt <<'EOF'
 Creating new database: testdb
 ✓ Created database structure at test/tmp/testdb
-✓ Created manifest: test/tmp/testdb/manifest.ini
+✓ Created manifest: test/tmp/testdb/manifest
 ✓ Created example rule: test/tmp/testdb/rules/basic.md
 
 Next steps:
-1. Edit test/tmp/testdb/manifest.ini to include your rules
+1. Edit test/tmp/testdb/manifest to include your rules
 2. Add rule files to test/tmp/testdb/rules/
-3. Build with: llm-rules build --manifest test/tmp/testdb/manifest.ini
+3. Build with: ai-rules build --manifest test/tmp/testdb/manifest
 EOF
 
 # Compare actual vs expected
@@ -37,31 +37,29 @@ if ! diff -q "test/tmp/new-01-output.txt" "test/tmp/new-01-expected.txt" >/dev/n
 fi
 
 # Check that files were actually created
-if [ ! -d "test/tmp/testdb" ] || [ ! -f "test/tmp/testdb/manifest.ini" ] || [ ! -f "test/tmp/testdb/rules/basic.md" ]; then
+if [ ! -d "test/tmp/testdb" ] || [ ! -f "test/tmp/testdb/manifest" ] || [ ! -f "test/tmp/testdb/rules/basic.md" ]; then
     echo "FAIL: Required files/directories not created"
     exit 1
 fi
 
 # Verify manifest content
-cat > test/tmp/new-01-expected-manifest.ini <<'EOF'
-# testdb Database Manifest
-# Add your rule files below
+cat > test/tmp/new-01-expected-manifest <<'EOF'
+# Add your rule files below using the pipe format
 
-[rules]
-# basic.md
-# advanced.md
+| basic
+# | advanced
 
 # Include rules from other databases:
-# other-database/specific-rule.md
+# | other-database/specific-rule
 EOF
 
-if ! diff -q "test/tmp/testdb/manifest.ini" "test/tmp/new-01-expected-manifest.ini" >/dev/null 2>&1; then
+if ! diff -q "test/tmp/testdb/manifest" "test/tmp/new-01-expected-manifest" >/dev/null 2>&1; then
     echo "FAIL: Generated manifest does not match expected"
     exit 1
 fi
 
 # Test that creating existing database fails with specific error
-LLM_RULES_DIR=test/tmp ./scripts/llm-rules new --database testdb > test/tmp/new-01-error.txt 2>&1 || true
+LLM_RULES_DIR=test/tmp ./scripts/ai-rules new --database testdb > test/tmp/new-01-error.txt 2>&1 || true
 
 # Create expected error output
 cat > test/tmp/new-01-expected-error.txt <<'EOF'

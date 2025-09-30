@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 echo "Testing: Comment handling"
 
 # Use basic fixture which has commented rule
-LLM_RULES_DIR=test/fixtures ./scripts/llm-rules build --manifest test/fixtures/basic/manifest --out test/tmp/build-02-comments.md
+LLM_RULES_DIR=test/fixtures ./scripts/ai-rules build --manifest test/fixtures/basic/manifest --out test/tmp/build-02-comments.md
 
 # Check that output file was created
 if [ ! -f "test/tmp/build-02-comments.md" ]; then
@@ -18,7 +18,6 @@ fi
 # Create expected output - should be identical to basic build test since we're using same fixture
 cat > test/tmp/build-02-expected.md <<'EOF'
 # Rule: rule1
-
 ## Rule One
 
 This is the first rule.
@@ -28,7 +27,6 @@ This is the first rule.
 Some basic content here.
 
 # Rule: rule2
-
 ## Rule Two
 
 This is the second rule.
@@ -38,7 +36,6 @@ This is the second rule.
 - Point one
 - Point two
 - Point three
-
 EOF
 
 # Compare actual vs expected - this verifies that commented rules are properly ignored
