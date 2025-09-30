@@ -198,6 +198,9 @@ ai-ruleset-manager/
 To test the project, run `./scripts/test`. Run specific test file with `./scripts/test build-01-basic`.
 
 ## 🗺️ Roadmap
+- Include full rule-name in built template
 - Shell completions
 - More comprehensive tests with combination of features (comments + deep nesting + rules from various databases)
 - Better folder structure semantics
+  - Search for rules in `rules/<database/*.md`
+
