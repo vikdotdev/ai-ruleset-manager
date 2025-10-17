@@ -32,17 +32,17 @@ fi
 
 # Create expected output (deeply-nested should be at level 2, not 3)
 cat > test/tmp/build-12-expected.md <<'EOF'
-# Rule: parent
+# Rule: nesting_warning/parent
 ## Parent Rule
 
 This is a parent rule.
 
-## Rule: deeply-nested
+## Rule: nesting_warning/deeply-nested
 ### Deeply Nested Rule
 
 This should be treated as level 2, not 3.
 
-# Rule: another-parent
+# Rule: nesting_warning/another-parent
 ## Another Parent Rule
 
 Another parent rule.

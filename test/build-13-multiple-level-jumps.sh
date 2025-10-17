@@ -47,42 +47,42 @@ fi
 
 # Create expected output with corrected nesting levels
 cat > test/tmp/build-13-expected.md <<'EOF'
-# Rule: level1
+# Rule: multiple_level_jumps/level1
 ## level1 Rule
 
 Test rule content.
 
-## Rule: jump-from-1-to-3
+## Rule: multiple_level_jumps/jump-from-1-to-3
 ### jump-from-1-to-3 Rule
 
 Test rule content.
 
-## Rule: level2
+## Rule: multiple_level_jumps/level2
 ### level2 Rule
 
 Test rule content.
 
-### Rule: jump-from-2-to-4
+### Rule: multiple_level_jumps/jump-from-2-to-4
 #### jump-from-2-to-4 Rule
 
 Test rule content.
 
-### Rule: level3
+### Rule: multiple_level_jumps/level3
 #### level3 Rule
 
 Test rule content.
 
-#### Rule: jump-from-3-to-5
+#### Rule: multiple_level_jumps/jump-from-3-to-5
 ##### jump-from-3-to-5 Rule
 
 Test rule content.
 
-# Rule: back-to-1
+# Rule: multiple_level_jumps/back-to-1
 ## back-to-1 Rule
 
 Test rule content.
 
-## Rule: big-jump-from-1-to-5
+## Rule: multiple_level_jumps/big-jump-from-1-to-5
 ### big-jump-from-1-to-5 Rule
 
 Test rule content.

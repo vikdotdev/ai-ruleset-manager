@@ -260,6 +260,11 @@ process_rule() {
     local manifest_dir="$2"
     local target_level="${3:-1}"  # Default to level 1 if not specified
     local full_path=""
+    local db_name=""
+    local current_db=""
+
+    # Extract current database name from manifest_dir
+    current_db=$(basename "$manifest_dir")
 
     # Add .md extension if not present (for new pipe format)
     case "$rule_path" in
@@ -282,6 +287,7 @@ process_rule() {
             ;;
         *)
             # Local to current database
+            db_name="$current_db"
             full_path="$manifest_dir/rules/$rule_path"
             ;;
     esac
@@ -291,8 +297,8 @@ process_rule() {
         return 1
     fi
 
-    # Generate and output rule title heading
-    rule_title=$(generate_rule_title "$(basename "$rule_path")")
+    # Generate and output rule title heading with database name
+    rule_title=$(generate_rule_title "$(basename "$rule_path")" "$db_name")
 
     # Output the rule title at the target level
     i=0
@@ -325,6 +331,7 @@ process_rule() {
 # Generate a clean title from a rule filename
 generate_rule_title() {
     local rule_name="$1"
+    local database_name="${2:-}"
     local base_name=""
 
     # Remove .md extension if present
@@ -337,8 +344,12 @@ generate_rule_title() {
             ;;
     esac
 
-    # Format as "Rule: <name>"
-    echo "Rule: $base_name"
+    # Format as "Rule: <database>/<name>"
+    if [ -n "$database_name" ]; then
+        echo "Rule: $database_name/$base_name"
+    else
+        echo "Rule: $base_name"
+    fi
 }
 
 # Parse a pipe-based line and extract level and rule name

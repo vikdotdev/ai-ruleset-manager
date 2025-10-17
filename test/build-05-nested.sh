@@ -17,7 +17,7 @@ fi
 
 # Create expected output based on nested fixture
 cat > test/tmp/build-05-expected.md <<'EOF'
-# Rule: parent
+# Rule: nested/parent
 ## Parent Rule
 
 This is the parent rule content.
@@ -26,7 +26,7 @@ This is the parent rule content.
 
 Some parent content here.
 
-## Rule: child1
+## Rule: nested/child1
 ### First Child
 
 This is the first child rule.
@@ -35,7 +35,7 @@ This is the first child rule.
 
 Content for first child.
 
-## Rule: child2
+## Rule: nested/child2
 ### Second Child
 
 This is the second child rule.

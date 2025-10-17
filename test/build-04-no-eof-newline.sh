@@ -17,7 +17,7 @@ fi
 
 # Create expected output - headings should be normalized and content preserved
 cat > test/tmp/build-04-expected.md <<'EOF'
-# Rule: no-newline-rule
+# Rule: no_eof_newline/no-newline-rule
 ## No Newline Rule
 
 This rule file does not end with a newline character.

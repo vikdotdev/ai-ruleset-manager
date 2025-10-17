@@ -17,7 +17,7 @@ fi
 
 # Create expected output - comments inside code blocks should be preserved
 cat > test/tmp/build-03-expected.md <<'EOF'
-# Rule: code-rule
+# Rule: with_code_blocks/code-rule
 ## Code Rule
 
 This rule has code blocks with comments.

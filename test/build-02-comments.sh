@@ -17,7 +17,7 @@ fi
 
 # Create expected output - should be identical to basic build test since we're using same fixture
 cat > test/tmp/build-02-expected.md <<'EOF'
-# Rule: rule1
+# Rule: basic/rule1
 ## Rule One
 
 This is the first rule.
@@ -26,7 +26,7 @@ This is the first rule.
 
 Some basic content here.
 
-# Rule: rule2
+# Rule: basic/rule2
 ## Rule Two
 
 This is the second rule.

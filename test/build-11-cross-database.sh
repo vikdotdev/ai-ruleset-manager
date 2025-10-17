@@ -17,22 +17,22 @@ fi
 
 # Create expected output
 cat > test/tmp/build-11-expected.md <<'EOF'
-# Rule: local-rule
+# Rule: main/local-rule
 ## Local Rule
 
 This is a rule local to the main database.
 
-# Rule: common-rule
+# Rule: shared/common-rule
 ## Common Shared Rule
 
 This rule is shared across databases.
 
-## Rule: nested-shared
+## Rule: shared/nested-shared
 ### Nested Shared Rule
 
 This shared rule should appear as a nested item.
 
-# Rule: another-local
+# Rule: main/another-local
 ## Another Local Rule
 
 Another rule in the main database.

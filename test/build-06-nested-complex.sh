@@ -17,57 +17,57 @@ fi
 
 # Create expected output - complex nested structure with multiple levels
 cat > test/tmp/build-06-expected.md <<'EOF'
-# Rule: intro
+# Rule: nested_complex/intro
 ## Introduction
 
 This is the introduction.
 
-# Rule: section1
+# Rule: nested_complex/section1
 ## Section One
 
 Main content for section 1.
 
-## Rule: section1-sub1
+## Rule: nested_complex/section1-sub1
 ### Subsection 1.1
 
 Content for section 1, subsection 1.
 
-## Rule: section1-sub2
+## Rule: nested_complex/section1-sub2
 ### Subsection 1.2
 
 Content for section 1, subsection 2.
 
-### Rule: section1-sub2-detail
+### Rule: nested_complex/section1-sub2-detail
 #### Detail 1.2.1
 
 Detailed content nested three levels deep.
 
-# Rule: section2
+# Rule: nested_complex/section2
 ## Section Two
 
 Main content for section 2.
 
-## Rule: section2-sub1
+## Rule: nested_complex/section2-sub1
 ### Subsection 2.1
 
 Content for section 2, subsection 1.
 
-### Rule: section2-sub1-detail1
+### Rule: nested_complex/section2-sub1-detail1
 #### Detail 2.1.1
 
 First detail under subsection 2.1.
 
-### Rule: section2-sub1-detail2
+### Rule: nested_complex/section2-sub1-detail2
 #### Detail 2.1.2
 
 Second detail under subsection 2.1.
 
-## Rule: section2-sub2
+## Rule: nested_complex/section2-sub2
 ### Subsection 2.2
 
 Content for section 2, subsection 2.
 
-# Rule: conclusion
+# Rule: nested_complex/conclusion
 ## Conclusion
 
 This is the conclusion.
